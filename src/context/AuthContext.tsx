@@ -26,7 +26,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const navigate = useNavigate();
 
   const isAuthenticated = !!user;
-  const API_URL = 'http://localhost:5000/api/auth'; // Hardcoded for now, or use env
+  const API_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth`;
 
   useEffect(() => {
     const checkAuth = async () => {

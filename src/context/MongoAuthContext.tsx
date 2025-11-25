@@ -23,7 +23,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Set up axios defaults
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // Add a request interceptor to include the auth token
 axios.interceptors.request.use(
@@ -43,7 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const navigate = useNavigate();
-  
+
   const isAuthenticated = !!user;
 
   // Check if user is logged in on initial load
@@ -52,16 +52,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         setLoading(true);
         const token = localStorage.getItem('token');
-        
+
         if (token) {
           // Verify token and get user data
           const response = await axios.get(`${API_URL}/auth/me`);
           setUser(response.data);
-          
+
           // Auto-navigate to dashboard if authenticated and on login page
           const currentPath = window.location.pathname;
           if (currentPath === '/' || currentPath === '/login') {
-            response.data.role === 'student' 
+            response.data.role === 'student'
               ? navigate('/student-dashboard')
               : navigate('/alumni-dashboard');
           }
@@ -90,23 +90,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       const { token, user } = response.data;
-      
+
       // Store the token in localStorage
       localStorage.setItem('token', token);
-      
+
       // Set the user in state
       setUser(user);
-      
+
       // Set the token in axios headers
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      
+
       // Redirect based on role
       if (role === 'student') {
         navigate('/student-dashboard');
       } else {
         navigate('/alumni-dashboard');
       }
-      
+
       toast({
         title: 'Account created successfully',
         description: 'Welcome to AlumniLink!',
@@ -135,28 +135,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       const { token, user } = response.data;
-      
+
       // Verify the role matches
       if (user.role !== role) {
         throw new Error(`You cannot login as a ${role} with these credentials`);
       }
-      
+
       // Store the token in localStorage
       localStorage.setItem('token', token);
-      
+
       // Set the user in state
       setUser(user);
-      
+
       // Set the token in axios headers
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      
+
       // Redirect based on role
       if (role === 'student') {
         navigate('/student-dashboard');
       } else {
         navigate('/alumni-dashboard');
       }
-      
+
       toast({
         title: 'Login successful',
         description: `Welcome back, ${user.name}!`,
@@ -181,7 +181,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       delete axios.defaults.headers.common['Authorization'];
       setUser(null);
       navigate('/login');
-      
+
       toast({
         title: 'Logged out successfully',
       });
