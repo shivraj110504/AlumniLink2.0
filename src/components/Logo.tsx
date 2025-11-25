@@ -7,10 +7,10 @@ interface LogoProps {
   variant?: 'full' | 'minimal';
 }
 
-const Logo: React.FC<LogoProps> = ({ 
-  className = "", 
-  size = "md", 
-  variant = "full" 
+const Logo: React.FC<LogoProps> = ({
+  className = "",
+  size = "md",
+  variant = "full"
 }) => {
   const sizeClasses = {
     sm: variant === 'full' ? 'h-8' : 'h-6',
@@ -20,10 +20,10 @@ const Logo: React.FC<LogoProps> = ({
 
   return (
     <div className={`flex items-center ${className}`}>
-      <img 
-        src="/lovable-uploads/b6bd0fc3-8058-42c4-8cad-097516a34cd3.png" 
+      <img
+        src="/logo.png"
         alt="AlumniLink Logo"
-        className={`${sizeClasses[size]} object-contain animate-fade-in`} 
+        className={`${sizeClasses[size]} object-contain animate-fade-in`}
       />
     </div>
   );

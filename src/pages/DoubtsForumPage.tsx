@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Send, ThumbsUp, MessageSquare, CheckCircle, ArrowRight } from 'lucide-react';
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+
 
 interface Doubt {
   id: string;
@@ -33,37 +33,13 @@ const DoubtsForumPage: React.FC<DoubtsForumPageProps> = ({ userType }) => {
   const [expandedDoubtId, setExpandedDoubtId] = useState<string | null>(null);
   const [doubts, setDoubts] = useState<Doubt[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Fetch doubts from database
   useEffect(() => {
     const fetchDoubts = async () => {
       try {
-        const { data, error } = await supabase
-          .from('doubts')
-          .select(`
-            id,
-            title,
-            content,
-            student_id,
-            created_at,
-            is_resolved,
-            profiles:student_id(name)
-          `)
-          .order('created_at', { ascending: false });
-        
-        if (error) {
-          throw error;
-        }
-
-        // Transform data to include author name
-        const transformedData = data.map(doubt => ({
-          ...doubt,
-          author_name: doubt.profiles?.name || 'Unknown User',
-          likes: Math.floor(Math.random() * 10), // Mock data for likes 
-          replies: Math.floor(Math.random() * 5)  // Mock data for replies
-        }));
-        
-        setDoubts(transformedData);
+        // Mock data
+        setDoubts([]);
       } catch (error) {
         console.error('Error fetching doubts:', error);
         toast({
@@ -81,35 +57,24 @@ const DoubtsForumPage: React.FC<DoubtsForumPageProps> = ({ userType }) => {
 
   const handleSubmitQuestion = async () => {
     if (!newQuestion.trim() || !user) return;
-    
+
     try {
-      // Insert new doubt into database
-      const { data, error } = await supabase
-        .from('doubts')
-        .insert({
-          title: newQuestion,
-          content: newQuestion, // Using the same content as title for simplicity
-          student_id: user.id,
-          is_resolved: false
-        })
-        .select()
-        .single();
-      
-      if (error) {
-        throw error;
-      }
-      
-      // Add to local state with author name
+      // Mock submission
       const newDoubt: Doubt = {
-        ...data,
+        id: Math.random().toString(),
+        title: newQuestion,
+        content: newQuestion,
+        student_id: user.id,
+        created_at: new Date().toISOString(),
+        is_resolved: false,
         author_name: user.name,
         likes: 0,
         replies: 0
       };
-      
+
       setDoubts([newDoubt, ...doubts]);
       setNewQuestion('');
-      
+
       toast({
         title: "Question submitted",
         description: "Your question has been posted to the forum",
@@ -123,30 +88,21 @@ const DoubtsForumPage: React.FC<DoubtsForumPageProps> = ({ userType }) => {
       });
     }
   };
-  
+
   const filteredDoubts = doubts.filter(doubt => {
     if (activeTab === 'resolved') return doubt.is_resolved;
     if (activeTab === 'unresolved') return !doubt.is_resolved;
     return true;
   });
-  
+
   const resolveDoubt = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('doubts')
-        .update({ is_resolved: true })
-        .eq('id', id);
-      
-      if (error) {
-        throw error;
-      }
-      
       setDoubts(
-        doubts.map(doubt => 
+        doubts.map(doubt =>
           doubt.id === id ? { ...doubt, is_resolved: true } : doubt
         )
       );
-      
+
       toast({
         title: "Doubt resolved",
         description: "The doubt has been marked as resolved",
@@ -160,21 +116,21 @@ const DoubtsForumPage: React.FC<DoubtsForumPageProps> = ({ userType }) => {
       });
     }
   };
-  
+
   const toggleExpandDoubt = (id: string) => {
     setExpandedDoubtId(expandedDoubtId === id ? null : id);
   };
-  
+
   const handleSolveClick = (doubt: Doubt) => {
     const basePath = userType === 'alumni' ? '/alumni-dashboard/messages' : '/student-dashboard/messages';
     navigate(`${basePath}?contactId=${doubt.student_id}&contactName=${doubt.author_name}&fromDoubt=true`);
   };
-  
+
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
     const now = new Date();
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    
+
     if (diffInSeconds < 60) {
       return 'Just now';
     } else if (diffInSeconds < 3600) {
@@ -185,7 +141,7 @@ const DoubtsForumPage: React.FC<DoubtsForumPageProps> = ({ userType }) => {
       return date.toLocaleDateString();
     }
   };
-  
+
   if (loading) {
     return (
       <PageLayout title="Doubt Forum" userType={userType}>
@@ -195,7 +151,7 @@ const DoubtsForumPage: React.FC<DoubtsForumPageProps> = ({ userType }) => {
       </PageLayout>
     );
   }
-  
+
   return (
     <PageLayout title="Doubt Forum" userType={userType}>
       <div className="glass-card rounded-xl p-6 animate-fade-in">
@@ -209,8 +165,8 @@ const DoubtsForumPage: React.FC<DoubtsForumPageProps> = ({ userType }) => {
               className="glass-input flex-1"
               disabled={userType !== 'student'}
             />
-            <Button 
-              onClick={handleSubmitQuestion} 
+            <Button
+              onClick={handleSubmitQuestion}
               className="btn-primary"
               disabled={userType !== 'student'}
             >
@@ -222,7 +178,7 @@ const DoubtsForumPage: React.FC<DoubtsForumPageProps> = ({ userType }) => {
             <p className="text-sm text-muted-foreground mt-2">Only students can post questions</p>
           )}
         </div>
-        
+
         <div className="border-t border-border pt-6">
           <div className="flex mb-6">
             <button
@@ -244,15 +200,15 @@ const DoubtsForumPage: React.FC<DoubtsForumPageProps> = ({ userType }) => {
               Resolved
             </button>
           </div>
-          
+
           <div className="space-y-4">
             {filteredDoubts.length > 0 ? (
               filteredDoubts.map(doubt => (
-                <div 
-                  key={doubt.id} 
+                <div
+                  key={doubt.id}
                   className={`bg-secondary/30 p-4 rounded-lg border border-border transition-all ${expandedDoubtId === doubt.id ? 'ring-1 ring-primary' : ''}`}
                 >
-                  <div 
+                  <div
                     className="flex justify-between cursor-pointer"
                     onClick={() => toggleExpandDoubt(doubt.id)}
                   >
@@ -271,18 +227,18 @@ const DoubtsForumPage: React.FC<DoubtsForumPageProps> = ({ userType }) => {
                     </button>
                     {userType === 'alumni' && !doubt.is_resolved && (
                       <div className="ml-auto flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
+                        <Button
+                          variant="outline"
+                          size="sm"
                           className="text-sm flex items-center gap-1 text-alumni-primary hover:text-alumni-primary/80 border-alumni-primary/30 hover:bg-alumni-primary/10"
                           onClick={() => handleSolveClick(doubt)}
                         >
                           <MessageSquare size={14} />
                           Solve via Message
                         </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
+                        <Button
+                          variant="outline"
+                          size="sm"
                           className="text-sm flex items-center gap-1 text-alumni-primary hover:text-alumni-primary/80 border-alumni-primary/30 hover:bg-alumni-primary/10"
                           onClick={() => resolveDoubt(doubt.id)}
                         >
@@ -298,7 +254,7 @@ const DoubtsForumPage: React.FC<DoubtsForumPageProps> = ({ userType }) => {
                       </span>
                     )}
                     {expandedDoubtId === doubt.id && !doubt.is_resolved && userType === 'student' && (
-                      <Button 
+                      <Button
                         className="ml-auto flex items-center gap-2"
                         size="sm"
                         variant="default"
@@ -308,7 +264,7 @@ const DoubtsForumPage: React.FC<DoubtsForumPageProps> = ({ userType }) => {
                       </Button>
                     )}
                   </div>
-                  
+
                   {expandedDoubtId === doubt.id && (
                     <div className="mt-4 pt-4 border-t border-border">
                       <p className="text-sm text-muted-foreground">

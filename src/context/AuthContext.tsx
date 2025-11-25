@@ -1,9 +1,6 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { Session, User } from '@supabase/supabase-js';
 
 interface AuthUser {
   id: string;
@@ -19,122 +16,96 @@ interface AuthContextType {
   logout: () => Promise<void>;
   isAuthenticated: boolean;
   loading: boolean;
-  session: Session | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const navigate = useNavigate();
-  
+
   const isAuthenticated = !!user;
+  const API_URL = 'http://localhost:5000/api/auth'; // Hardcoded for now, or use env
 
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
-        console.log('Auth state changed:', event, currentSession?.user?.id);
-        setSession(currentSession);
-        
-        if (currentSession && currentSession.user) {
-          // Fetch user profile data including role
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', currentSession.user.id)
-            .single();
-            
-          if (profileError) {
-            console.error('Error fetching profile:', profileError);
-            setUser(null);
-          } else if (profileData) {
-            setUser({
-              id: profileData.id,
-              name: profileData.name,
-              role: profileData.role as 'student' | 'alumni',
-              email: profileData.email
-            });
-          }
-        } else {
-          setUser(null);
-        }
-        
-        setLoading(false);
-      }
-    );
+    const checkAuth = async () => {
+      const token = localStorage.getItem('token');
+      console.log('checkAuth running, token:', !!token);
 
-    // Check for existing session
-    const initializeAuth = async () => {
-      setLoading(true);
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      
-      if (currentSession && currentSession.user) {
-        // Fetch user profile data including role
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', currentSession.user.id)
-          .single();
-          
-        if (profileError) {
-          console.error('Error fetching profile:', profileError);
-          setUser(null);
-          setSession(null);
-        } else if (profileData) {
-          setUser({
-            id: profileData.id,
-            name: profileData.name,
-            role: profileData.role as 'student' | 'alumni',
-            email: profileData.email
+      if (token) {
+        try {
+          const response = await fetch(`${API_URL}/me`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
           });
-          setSession(currentSession);
-          
-          // Auto-navigate to dashboard if authenticated and on login page
-          const currentPath = window.location.pathname;
-          if (currentPath === '/' || currentPath === '/login') {
-            profileData.role === 'student' 
-              ? navigate('/student-dashboard')
-              : navigate('/alumni-dashboard');
+
+          console.log('checkAuth response:', response.status);
+
+          if (response.ok) {
+            const userData = await response.json();
+            setUser({
+              id: userData._id,
+              name: userData.name,
+              role: userData.role,
+              email: userData.email,
+            });
+          } else {
+            console.warn('checkAuth failed with status:', response.status);
+            localStorage.removeItem('token');
+            setUser(null);
           }
+        } catch (error) {
+          console.error('Auth check failed (network/server error):', error);
+          // Do NOT remove token on network error, to avoid logout loop during flaky connection
+          // But if it's a persistent error, user might be stuck.
+          // For now, let's keep the token but maybe set a "connection error" state?
+          // Or just remove it to be safe.
+          localStorage.removeItem('token');
+          setUser(null);
         }
       }
-      
       setLoading(false);
     };
 
-    initializeAuth();
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [navigate]);
+    checkAuth();
+  }, []);
 
   const signup = async (email: string, password: string, name: string, role: 'student' | 'alumni') => {
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name,
-            role
-          }
-        }
+      const response = await fetch(`${API_URL}/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, name, role }),
       });
 
-      if (error) {
-        throw error;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Signup failed');
       }
+
+      localStorage.setItem('token', data.token);
+      setUser({
+        id: data._id,
+        name: data.name,
+        role: data.role,
+        email: data.email,
+      });
 
       toast({
         title: "Account created successfully",
-        description: "You can now login with your credentials",
+        description: "Welcome to AlumniLink!",
       });
-      
-      return;
+
+      if (role === 'student') {
+        navigate('/student-dashboard');
+      } else {
+        navigate('/alumni-dashboard');
+      }
     } catch (error: any) {
       toast({
         title: "Error creating account",
@@ -148,55 +119,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string, role: 'student' | 'alumni') => {
     try {
       setLoading(true);
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
+      const response = await fetch(`${API_URL}/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
       });
 
-      if (error) {
-        throw error;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Login failed');
       }
 
-      // Verify the role matches
-      if (data.user) {
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('role, name, id, email')
-          .eq('id', data.user.id)
-          .single();
-
-        if (profileError || !profileData) {
-          throw new Error('Could not verify user role');
-        }
-
-        if (profileData.role !== role) {
-          // Role mismatch - log out and throw error
-          await supabase.auth.signOut();
-          throw new Error(`You cannot login as a ${role} with these credentials`);
-        }
-
-        // Set user immediately to avoid delay in UI updates
-        setUser({
-          id: profileData.id,
-          name: profileData.name,
-          role: profileData.role as 'student' | 'alumni',
-          email: profileData.email
-        });
-        
-        setSession(data.session);
-
-        // Login successful - redirect to appropriate dashboard
-        if (role === 'student') {
-          navigate('/student-dashboard', { replace: true });
-        } else {
-          navigate('/alumni-dashboard', { replace: true });
-        }
-
-        toast({
-          title: "Logged in successfully",
-          description: `Welcome back!`,
-        });
+      if (data.role !== role) {
+        throw new Error(`You cannot login as a ${role} with these credentials`);
       }
+
+      localStorage.setItem('token', data.token);
+      setUser({
+        id: data._id,
+        name: data.name,
+        role: data.role,
+        email: data.email,
+      });
+
+      if (role === 'student') {
+        navigate('/student-dashboard', { replace: true });
+      } else {
+        navigate('/alumni-dashboard', { replace: true });
+      }
+
+      toast({
+        title: "Logged in successfully",
+        description: `Welcome back!`,
+      });
     } catch (error: any) {
       toast({
         title: "Login failed",
@@ -211,46 +169,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      setLoading(true);
-      
-      // First clear the local state
+      localStorage.removeItem('token');
       setUser(null);
-      setSession(null);
-      
-      // Then sign out from Supabase
-      const { error } = await supabase.auth.signOut();
-      
-      if (error) {
-        throw error;
-      }
-      
-      // Navigate to home page
       navigate('/', { replace: true });
-      
+
       toast({
         title: "Logged out successfully",
         description: "You have been logged out of your account",
       });
     } catch (error: any) {
-      toast({
-        title: "Error logging out",
-        description: error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
+      console.error('Logout error:', error);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      login, 
+    <AuthContext.Provider value={{
+      user,
+      login,
       signup,
-      logout, 
+      logout,
       isAuthenticated,
-      loading,
-      session
+      loading
     }}>
       {children}
     </AuthContext.Provider>
